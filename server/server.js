@@ -13,24 +13,17 @@ connectDB();
 
 const app = express();
 
-/* ================= CORS FIX ================= */
-// allow frontend (localhost + deployed)
+/* ================= CORS ================= */
 app.use(
   cors({
     origin: [
       "http://localhost:3000",
       "https://certificate-verification-system-nwlu.onrender.com",
     ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-  }),
+  })
 );
-
-// handle preflight requests
-app.options("/*", cors());
-
-/* =========================================== */
+/* ======================================= */
 
 app.use(express.json());
 
