@@ -1,14 +1,16 @@
 node_modules
 .env
 
-# Hardhat files
-/cache
-/artifacts
+# Hardhat cache (ignore)
+cache/
+
+# KEEP artifacts (DO NOT ignore)
+# artifacts/  ← removed
 
 # TypeChain files
-/typechain
-/typechain-types
+typechain/
+typechain-types/
 
-# solidity-coverage files
-/coverage
-/coverage.json
+# coverage
+coverage/
+coverage.json
