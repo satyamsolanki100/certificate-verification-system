@@ -6,8 +6,14 @@ const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
 // 2. Load ABI (FIXED PATH)
-const abi =
-  require("../../blockchain/artifacts/contracts/CertificateRegistry.sol/CertificateRegistry.json").abi;
+const path = require("path");
+
+const abi = require(
+  path.join(
+    __dirname,
+    "../../blockchain/artifacts/contracts/CertificateRegistry.sol/CertificateRegistry.json",
+  ),
+).abi;
 
 // 3. Initialize Contract
 const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, abi, wallet);
