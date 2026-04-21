@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+
 const {
   register,
   login,
@@ -7,21 +8,43 @@ const {
   resetPassword,
   changePassword,
 } = require("../controllers/authController");
+
 const { protect } = require("../middleware/authMiddleware");
 
-// ================= PUBLIC AUTH ROUTES =================
-// Anyone can access these to join or recover their account
-
+// ================= PUBLIC ROUTES =================
 router.post("/register", register);
 router.post("/login", login);
-
-// Access Recovery Flow (Resolves the 404 error in your screenshot)
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 
-// ================= PROTECTED AUTH ROUTES =================
-// Requires a valid Bearer Token (JWT) in the header
+// ================= ADMIN CREATION (TEMP - RUN ONCE) =================
+router.post("/create-admin", async (req, res) => {
+  try {
+    const User = require("../models/User");
 
+    const existingAdmin = await User.findOne({ role: "admin" });
+
+    if (existingAdmin) {
+      return res.status(400).json({ message: "Admin already exists" });
+    }
+
+    const admin = await User.create({
+      name: "Admin",
+      email: "admin@vivid.com",
+      password: "admin123",
+      role: "admin",
+    });
+
+    res.status(201).json({
+      message: "Admin created successfully",
+      admin,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ================= PROTECTED ROUTES =================
 router.put("/change-password", protect, changePassword);
 
 module.exports = router;
