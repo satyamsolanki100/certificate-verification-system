@@ -1,23 +1,24 @@
-// 1. MUST BE THE VERY FIRST LINE
 require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const path = require("path"); // Useful for resolving paths
+
+// ✅ correct import (only once)
 const connectDB = require("./config/db");
+
 const authRoutes = require("./routes/authRoutes");
 const certificateRoutes = require("./routes/certificateRoutes");
 
-// 2. Now that variables are loaded, we can connect
+// connect DB
 connectDB();
 
 const app = express();
 
-// Middleware
+// middleware
 app.use(cors());
 app.use(express.json());
 
-// Routes
+// routes
 app.use("/api/auth", authRoutes);
 app.use("/api/certificate", certificateRoutes);
 
