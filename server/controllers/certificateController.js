@@ -24,9 +24,8 @@ exports.issueCertificate = async (req, res) => {
 
     const cleanEmail = studentEmail.trim().toLowerCase();
 
-    // AUTO CREATE USER LOGIC
+    // AUTO CREATE USER
     let user = await User.findOne({ email: cleanEmail });
-    let isNewUser = false;
     const tempPassword = crypto.randomBytes(4).toString("hex");
 
     if (!user) {
@@ -37,8 +36,7 @@ exports.issueCertificate = async (req, res) => {
         password: hashedPassword,
         role: "student",
       });
-      isNewUser = true;
-      console.log(`[AUTH] New student account auto-provisioned: ${cleanEmail}`);
+      console.log(`[AUTH] New student created: ${cleanEmail}`);
     }
 
     if (!req.file) {
@@ -48,7 +46,7 @@ exports.issueCertificate = async (req, res) => {
     const filePath = req.file.path;
     const certHash = generateHash(filePath);
 
-    // IPFS Upload
+    // ================= IPFS UPLOAD =================
     const data = new FormData();
     data.append("file", fs.createReadStream(filePath));
 
@@ -67,16 +65,31 @@ exports.issueCertificate = async (req, res) => {
 
     const ipfsHash = pinataResponse.data.IpfsHash;
 
-    // Blockchain Anchor
+    // ================= BLOCKCHAIN DEBUG =================
     let txHash = null;
+
     try {
+      console.log("🚀 Sending transaction to blockchain...");
+      console.log("Hash:", certHash);
+
       const tx = await contract.storeCertificate(certHash);
+
+      console.log("⏳ Waiting for confirmation...");
       await tx.wait();
+
       txHash = tx.hash;
+      console.log("✅ Transaction Success:", txHash);
     } catch (err) {
-      txHash = err.reason?.includes("exists")
-        ? "ALREADY_ANCHORED"
-        : "ERROR_ANCHORING";
+      console.error("❌ Blockchain Error FULL:", err);
+
+      if (err.reason && err.reason.includes("exists")) {
+        txHash = "ALREADY_ANCHORED";
+      } else {
+        return res.status(500).json({
+          error: "Blockchain transaction failed",
+          details: err.message,
+        });
+      }
     }
 
     const issuedBy = req.user?.id || null;
@@ -93,55 +106,65 @@ exports.issueCertificate = async (req, res) => {
       transactionHash: txHash,
     });
 
-    // QR Code Generation
-    const verificationUrl = `http://localhost:5000/api/certificates/public/${newCert._id}`;
+    // ================= QR CODE =================
+    const verificationUrl = `${process.env.BASE_URL}/api/certificate/public/${newCert._id}`;
     const qrFileName = `${newCert._id}-qr.png`;
     const uploadsDir = path.join(__dirname, "../uploads");
+
     if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
     const qrPath = path.join(uploadsDir, qrFileName);
     await QRCode.toFile(qrPath, verificationUrl);
+
     newCert.qrCode = qrFileName;
     await newCert.save();
 
-    // Email logic remains same...
-    const emailBody = `<h2>Certificate Issued</h2><p>Login to your vault: ${cleanEmail}</p>`;
+    // ================= EMAIL =================
+    const emailBody = `
+      <h2>Certificate Issued</h2>
+      <p>Login using:</p>
+      <p>Email: ${cleanEmail}</p>
+      <p>Password: ${tempPassword}</p>
+    `;
+
     await sendEmail({
       email: cleanEmail,
       subject: "Certificate Issued",
       message: emailBody,
     });
 
+    // cleanup
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
-    res.status(201).json({ success: true, certificate: newCert });
+    res.status(201).json({
+      success: true,
+      certificate: newCert,
+    });
   } catch (error) {
+    console.error("❌ ISSUE ERROR:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // ================================================================
-// 2. STUDENT VAULT (THE FIX: Filters by current user's email)
+// OTHER FUNCTIONS (UNCHANGED)
 // ================================================================
+
 exports.getStudentCertificates = async (req, res) => {
   try {
-    // req.user is provided by your authentication middleware
     const certs = await Certificate.find({ studentEmail: req.user.email }).sort(
-      { issuedAt: -1 },
+      {
+        issuedAt: -1,
+      },
     );
-
     res.json(certs);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch your vault data" });
+    res.status(500).json({ message: "Failed to fetch vault" });
   }
 };
 
-// ================================================================
-// 3. ADMINISTRATIVE CONTROLS (GLOBAL LEDGER)
-// ================================================================
 exports.getAllCertificates = async (req, res) => {
   try {
-    // This remains for Admins to see EVERY certificate
     const certs = await Certificate.find().sort({ issuedAt: -1 });
     res.json(certs);
   } catch (error) {
@@ -149,17 +172,15 @@ exports.getAllCertificates = async (req, res) => {
   }
 };
 
-// ================================================================
-// 4. VERIFICATION & PUBLIC ACCESS
-// ================================================================
 exports.getPublicCertificate = async (req, res) => {
   try {
     const cert = await Certificate.findById(req.params.certId).populate(
       "issuedBy",
       "name email",
     );
-    if (!cert)
-      return res.status(404).json({ message: "Certificate not found" });
+
+    if (!cert) return res.status(404).json({ message: "Not found" });
+
     res.json(cert);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -168,17 +189,22 @@ exports.getPublicCertificate = async (req, res) => {
 
 exports.verifyCertificate = async (req, res) => {
   try {
-    if (!req.file)
-      return res.status(400).json({ message: "No document uploaded" });
-    const uploadedFileHash = generateHash(req.file.path);
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    const uploadedHash = generateHash(req.file.path);
+
     const certificate = await Certificate.findOne({
-      certHash: uploadedFileHash,
+      certHash: uploadedHash,
     });
+
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
     if (!certificate)
-      return res
-        .status(404)
-        .json({ valid: false, message: "Mismatch detected" });
+      return res.status(404).json({
+        valid: false,
+        message: "Mismatch detected",
+      });
+
     res.json({ valid: true, certificate });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -192,10 +218,9 @@ exports.revokeCertificate = async (req, res) => {
       { status: "revoked" },
       { new: true },
     );
+
     res.json({ success: true, cert });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
-
-// Password management functions (forgotPassword/resetPassword) should follow here...
