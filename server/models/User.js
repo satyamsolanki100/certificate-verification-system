@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema(
       default: "student",
     },
 
-    // 🔐 PASSWORD RESET (KEEPING YOUR EXISTING)
+    // PASSWORD RESET
     resetPasswordToken: {
       type: String,
       default: undefined,
@@ -42,17 +42,28 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// 🔥 HASH PASSWORD BEFORE SAVE
+/* =====================================================
+   HASH PASSWORD BEFORE SAVE (FIXED VERSION)
+===================================================== */
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+  try {
+    // only hash if password modified
+    if (!this.isModified("password")) {
+      return next();
+    }
 
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
 
-  next();
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
-// 🔥 COMPARE PASSWORD (LOGIN)
+/* =====================================================
+   PASSWORD COMPARE METHOD
+===================================================== */
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
