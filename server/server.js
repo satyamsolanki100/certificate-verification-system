@@ -18,10 +18,12 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "https://certificate-verification-system-nwlu.onrender.com",
+      "https://certificate-verification-system-nw1u.onrender.com",
     ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-  })
+  }),
 );
 /* ======================================= */
 
